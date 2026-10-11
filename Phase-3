@@ -1,0 +1,525 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import random
+
+# Rock Paper Scissors - Phase 3 Gaming Tracker
+# Uses only Python's built-in Tkinter library.
+
+ROUNDS = 25
+BG = "#0B1224"
+PANEL = "#14213A"
+CARD = "#1B2D4B"
+WHITE = "#F4F7FB"
+MUTED = "#A9B8D0"
+BLUE = "#39A9FF"
+GREEN = "#23D5AB"
+RED = "#FF5C83"
+YELLOW = "#FFC857"
+PURPLE = "#9B7BFF"
+
+
+class GameTracker:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Rock Paper Scissors - Phase 3 Gaming Tracker")
+        self.root.geometry("1200x800")
+        self.root.minsize(980, 680)
+        self.root.configure(bg=BG)
+
+        self.reset_values()
+        self.setup_style()
+        self.build_ui()
+        self.refresh_dashboard()
+
+    def reset_values(self):
+        self.round_no = 0
+        self.player_wins = 0
+        self.computer_wins = 0
+        self.ties = 0
+        self.rock_count = 0
+        self.paper_count = 0
+        self.scissors_count = 0
+        self.current_streak = 0
+        self.longest_streak = 0
+        self.history = []
+        self.game_over = False
+
+    def setup_style(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Game.Treeview",
+            background=PANEL,
+            fieldbackground=PANEL,
+            foreground=WHITE,
+            rowheight=27,
+            borderwidth=0,
+            font=("Segoe UI", 9)
+        )
+        style.configure(
+            "Game.Treeview.Heading",
+            background=CARD,
+            foreground=WHITE,
+            font=("Segoe UI", 9, "bold"),
+            relief="flat"
+        )
+        style.map(
+            "Game.Treeview",
+            background=[("selected", "#294A78")],
+            foreground=[("selected", WHITE)]
+        )
+
+    def build_ui(self):
+        # Header
+        header = tk.Frame(self.root, bg=BG)
+        header.pack(fill="x", padx=18, pady=(14, 8))
+
+        tk.Label(
+            header, text="✊  ROCK PAPER SCISSORS",
+            font=("Segoe UI", 23, "bold"), bg=BG, fg=WHITE
+        ).pack(side="left")
+
+        tk.Label(
+            header, text="PHASE 3  |  GAMING TRACKER",
+            font=("Segoe UI", 10, "bold"), bg=BG, fg=BLUE
+        ).pack(side="right", padx=6, pady=10)
+
+        # Summary cards
+        cards = tk.Frame(self.root, bg=BG)
+        cards.pack(fill="x", padx=14, pady=5)
+
+        self.player_value = self.make_stat_card(cards, "PLAYER WINS", "0", GREEN)
+        self.computer_value = self.make_stat_card(cards, "COMPUTER WINS", "0", RED)
+        self.ties_value = self.make_stat_card(cards, "TIES", "0", YELLOW)
+        self.rate_value = self.make_stat_card(cards, "WIN RATE", "0.0%", BLUE)
+
+        # Main content
+        main = tk.Frame(self.root, bg=BG)
+        main.pack(fill="both", expand=True, padx=14, pady=8)
+        main.columnconfigure(0, weight=3)
+        main.columnconfigure(1, weight=2)
+        main.rowconfigure(1, weight=1)
+
+        # Game panel
+        game = tk.Frame(main, bg=PANEL, padx=14, pady=12)
+        game.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=(0, 8))
+
+        self.round_label = tk.Label(
+            game, text="ROUND 0 / 25", font=("Segoe UI", 11, "bold"),
+            bg=PANEL, fg=YELLOW
+        )
+        self.round_label.pack()
+
+        tk.Label(
+            game, text="Make Your Move",
+            font=("Segoe UI", 20, "bold"), bg=PANEL, fg=WHITE
+        ).pack(pady=(7, 10))
+
+        move_frame = tk.Frame(game, bg=PANEL)
+        move_frame.pack(pady=4)
+
+        self.move_buttons = []
+        choices = [
+            ("✊\nROCK", "Rock", "#1479E8"),
+            ("✋\nPAPER", "Paper", "#0EAA80"),
+            ("✌\nSCISSORS", "Scissors", "#D98712")
+        ]
+        for label, move, color in choices:
+            btn = tk.Button(
+                move_frame, text=label, width=12, height=3,
+                font=("Segoe UI", 12, "bold"),
+                bg=color, fg="white", activebackground=color,
+                activeforeground="white", relief="flat",
+                cursor="hand2",
+                command=lambda m=move: self.play_round(m)
+            )
+            btn.pack(side="left", padx=7)
+            self.move_buttons.append(btn)
+
+        self.result_label = tk.Label(
+            game, text="Choose a move to start the game!",
+            font=("Segoe UI", 12, "bold"), bg=PANEL, fg=BLUE
+        )
+        self.result_label.pack(pady=(10, 5))
+
+        self.moves_label = tk.Label(
+            game, text="Your choice: —     Computer choice: —",
+            font=("Segoe UI", 10), bg=PANEL, fg=MUTED
+        )
+        self.moves_label.pack()
+
+        # Game history
+        history_panel = tk.Frame(main, bg=PANEL, padx=10, pady=10)
+        history_panel.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
+
+        tk.Label(
+            history_panel, text="GAME HISTORY",
+            font=("Segoe UI", 12, "bold"), bg=PANEL, fg=WHITE
+        ).pack(anchor="w", pady=(0, 7))
+
+        columns = ("round", "player", "computer", "result")
+        self.table = ttk.Treeview(
+            history_panel, columns=columns, show="headings",
+            style="Game.Treeview", height=10
+        )
+        settings = [
+            ("round", "Round", 55),
+            ("player", "Your Move", 105),
+            ("computer", "Computer Move", 115),
+            ("result", "Outcome", 120)
+        ]
+        for col, heading, width in settings:
+            self.table.heading(col, text=heading)
+            self.table.column(col, width=width, anchor="center")
+
+        self.table.tag_configure("win", foreground=GREEN)
+        self.table.tag_configure("loss", foreground=RED)
+        self.table.tag_configure("tie", foreground=YELLOW)
+
+        scrollbar = ttk.Scrollbar(
+            history_panel, orient="vertical", command=self.table.yview
+        )
+        self.table.configure(yscrollcommand=scrollbar.set)
+        self.table.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Analytics panel
+        analytics = tk.Frame(main, bg=PANEL, padx=12, pady=10)
+        analytics.grid(row=0, column=1, rowspan=2, sticky="nsew")
+
+        tk.Label(
+            analytics, text="PERFORMANCE DASHBOARD",
+            font=("Segoe UI", 12, "bold"), bg=PANEL, fg=WHITE
+        ).pack(anchor="w")
+
+        self.streak_label = tk.Label(
+            analytics, text="Longest win streak: 0",
+            font=("Segoe UI", 10, "bold"), bg=CARD, fg=GREEN,
+            padx=10, pady=12
+        )
+        self.streak_label.pack(fill="x", pady=(10, 12))
+
+        tk.Label(
+            analytics, text="ROUND OUTCOMES",
+            font=("Segoe UI", 10, "bold"), bg=PANEL, fg=WHITE
+        ).pack(anchor="w")
+
+        self.bar_canvas = tk.Canvas(
+            analytics, height=145, bg=PANEL, highlightthickness=0
+        )
+        self.bar_canvas.pack(fill="x", pady=(3, 8))
+
+        tk.Label(
+            analytics, text="PLAYER MOVE DISTRIBUTION",
+            font=("Segoe UI", 10, "bold"), bg=PANEL, fg=WHITE
+        ).pack(anchor="w")
+
+        self.pie_canvas = tk.Canvas(
+            analytics, height=155, bg=PANEL, highlightthickness=0
+        )
+        self.pie_canvas.pack(fill="x", pady=(3, 8))
+
+        tk.Label(
+            analytics, text="MATCH STATUS",
+            font=("Segoe UI", 10, "bold"), bg=PANEL, fg=WHITE
+        ).pack(anchor="w")
+
+        self.status_detail = tk.Label(
+            analytics, text="Rounds played: 0 / 25\nReady to play",
+            justify="left", font=("Segoe UI", 10),
+            bg=CARD, fg=MUTED, padx=10, pady=10
+        )
+        self.status_detail.pack(fill="x", pady=(6, 0))
+
+        # Bottom buttons
+        footer = tk.Frame(self.root, bg=BG)
+        footer.pack(fill="x", padx=18, pady=(2, 14))
+
+        tk.Button(
+            footer, text="↻  NEW GAME", command=self.restart_game,
+            font=("Segoe UI", 10, "bold"), bg=PURPLE, fg="white",
+            activebackground=PURPLE, activeforeground="white",
+            relief="flat", padx=16, pady=9, cursor="hand2"
+        ).pack(side="left")
+
+        tk.Button(
+            footer, text="VIEW FINAL REPORT", command=self.show_report,
+            font=("Segoe UI", 10, "bold"), bg="#1769AA", fg="white",
+            activebackground="#1769AA", activeforeground="white",
+            relief="flat", padx=16, pady=9, cursor="hand2"
+        ).pack(side="left", padx=9)
+
+        self.footer_status = tk.Label(
+            footer, text="● Ready to play",
+            font=("Segoe UI", 10), bg=BG, fg=GREEN
+        )
+        self.footer_status.pack(side="right")
+
+    def make_stat_card(self, parent, title, value, color):
+        card = tk.Frame(parent, bg=CARD, padx=10, pady=9)
+        card.pack(side="left", fill="x", expand=True, padx=4)
+        tk.Label(
+            card, text=title, font=("Segoe UI", 9, "bold"),
+            bg=CARD, fg=MUTED
+        ).pack()
+        label = tk.Label(
+            card, text=value, font=("Segoe UI", 21, "bold"),
+            bg=CARD, fg=color
+        )
+        label.pack(pady=(3, 0))
+        return label
+
+    def play_round(self, player):
+        if self.game_over:
+            return
+
+        computer = random.choice(["Rock", "Paper", "Scissors"])
+        self.round_no += 1
+
+        if player == "Rock":
+            self.rock_count += 1
+        elif player == "Paper":
+            self.paper_count += 1
+        else:
+            self.scissors_count += 1
+
+        if player == computer:
+            result = "Tie"
+            self.ties += 1
+            self.current_streak = 0
+        elif (
+            (player == "Rock" and computer == "Scissors")
+            or (player == "Paper" and computer == "Rock")
+            or (player == "Scissors" and computer == "Paper")
+        ):
+            result = "Player Wins"
+            self.player_wins += 1
+            self.current_streak += 1
+            self.longest_streak = max(
+                self.longest_streak, self.current_streak
+            )
+        else:
+            result = "Computer Wins"
+            self.computer_wins += 1
+            self.current_streak = 0
+
+        self.history.append((self.round_no, player, computer, result))
+        tag = {"Player Wins": "win", "Computer Wins": "loss", "Tie": "tie"}[result]
+        self.table.insert(
+            "", "end",
+            values=(self.round_no, player, computer, result),
+            tags=(tag,)
+        )
+        children = self.table.get_children()
+        if children:
+            self.table.see(children[-1])
+
+        self.moves_label.config(
+            text=f"Your choice: {player}     Computer choice: {computer}"
+        )
+
+        if result == "Player Wins":
+            self.result_label.config(text="🎉 You won this round!", fg=GREEN)
+        elif result == "Computer Wins":
+            self.result_label.config(text="Computer won this round!", fg=RED)
+        else:
+            self.result_label.config(text="It's a tie!", fg=YELLOW)
+
+        self.footer_status.config(text=f"● Round {self.round_no} completed")
+        self.refresh_dashboard()
+
+        if self.round_no >= ROUNDS:
+            self.finish_game()
+
+    def refresh_dashboard(self):
+        self.round_label.config(text=f"ROUND {self.round_no} / {ROUNDS}")
+        self.player_value.config(text=str(self.player_wins))
+        self.computer_value.config(text=str(self.computer_wins))
+        self.ties_value.config(text=str(self.ties))
+
+        rate = self.player_wins / self.round_no * 100 if self.round_no else 0
+        self.rate_value.config(text=f"{rate:.1f}%")
+        self.streak_label.config(
+            text=f"Longest win streak: {self.longest_streak}"
+        )
+        self.status_detail.config(
+            text=(
+                f"Rounds played: {self.round_no} / {ROUNDS}\n"
+                f"Rock: {self.rock_count}   Paper: {self.paper_count}\n"
+                f"Scissors: {self.scissors_count}"
+            )
+        )
+        self.draw_bar_chart()
+        self.draw_pie_chart()
+
+    def draw_bar_chart(self):
+        c = self.bar_canvas
+        c.delete("all")
+        c.update_idletasks()
+        width = max(c.winfo_width(), 260)
+        values = [
+            ("Player", self.player_wins, GREEN),
+            ("Computer", self.computer_wins, RED),
+            ("Ties", self.ties, YELLOW)
+        ]
+        max_value = max([v for _, v, _ in values] + [1])
+        left = 75
+        right = width - 28
+        bar_width = max(30, right - left)
+
+        for index, (name, value, color) in enumerate(values):
+            y = 12 + index * 42
+            c.create_text(3, y + 9, text=name, fill=WHITE, anchor="w",
+                          font=("Segoe UI", 9))
+            c.create_rectangle(left, y, right, y + 20, fill=CARD, outline="")
+            fill_width = bar_width * value / max_value
+            if value:
+                c.create_rectangle(left, y, left + fill_width, y + 20,
+                                   fill=color, outline="")
+            c.create_text(min(left + fill_width + 14, width - 12), y + 10,
+                          text=str(value), fill=WHITE,
+                          font=("Segoe UI", 9, "bold"))
+
+    def draw_pie_chart(self):
+        c = self.pie_canvas
+        c.delete("all")
+        c.update_idletasks()
+        width = max(c.winfo_width(), 260)
+        values = [
+            ("Rock", self.rock_count, BLUE),
+            ("Paper", self.paper_count, GREEN),
+            ("Scissors", self.scissors_count, YELLOW)
+        ]
+        total = sum(v for _, v, _ in values)
+        x0, y0, diameter = 8, 12, 112
+        x1, y1 = x0 + diameter, y0 + diameter
+
+        if total == 0:
+            c.create_oval(x0, y0, x1, y1, fill=CARD, outline="")
+            c.create_text(x0 + diameter / 2, y0 + diameter / 2,
+                          text="No data yet", fill=WHITE,
+                          font=("Segoe UI", 9))
+        else:
+            start = 0
+            for name, value, color in values:
+                if value:
+                    extent = value / total * 360
+                    c.create_arc(x0, y0, x1, y1, start=start, extent=extent,
+                                 fill=color, outline=PANEL, width=2)
+                    start += extent
+
+        legend_x = min(135, width - 105)
+        for i, (name, value, color) in enumerate(values):
+            y = 28 + i * 36
+            percent = value / total * 100 if total else 0
+            c.create_rectangle(legend_x, y, legend_x + 12, y + 12,
+                               fill=color, outline="")
+            c.create_text(legend_x + 18, y + 6,
+                          text=f"{name}: {value} ({percent:.0f}%)",
+                          fill=WHITE, anchor="w",
+                          font=("Segoe UI", 8))
+
+    def finish_game(self):
+        self.game_over = True
+        for button in self.move_buttons:
+            button.config(state="disabled")
+
+        if self.player_wins > self.computer_wins:
+            winner = "YOU WON THE MATCH!"
+        elif self.computer_wins > self.player_wins:
+            winner = "COMPUTER WON THE MATCH!"
+        else:
+            winner = "THE MATCH IS A DRAW!"
+
+        self.result_label.config(text="MATCH COMPLETED!", fg=BLUE)
+        self.footer_status.config(text="● Match completed")
+        messagebox.showinfo(
+            "Match Complete",
+            f"{winner}\n\n"
+            f"Player wins: {self.player_wins}\n"
+            f"Computer wins: {self.computer_wins}\n"
+            f"Ties: {self.ties}\n"
+            f"Win rate: {self.player_wins / ROUNDS * 100:.1f}%\n"
+            f"Longest win streak: {self.longest_streak}\n\n"
+            "Click 'VIEW FINAL REPORT' for full statistics."
+        )
+
+    def show_report(self):
+        if self.round_no == 0:
+            messagebox.showinfo("Final Report", "Play a round first to create your report.")
+            return
+
+        rate = self.player_wins / self.round_no * 100
+        if self.round_no < ROUNDS:
+            match_result = "Match in progress"
+        elif self.player_wins > self.computer_wins:
+            match_result = "Player wins the match"
+        elif self.computer_wins > self.player_wins:
+            match_result = "Computer wins the match"
+        else:
+            match_result = "Match draw"
+
+        report = tk.Toplevel(self.root)
+        report.title("Final Performance Report")
+        report.geometry("440x500")
+        report.configure(bg=BG)
+        report.transient(self.root)
+
+        tk.Label(
+            report, text="FINAL PERFORMANCE REPORT",
+            font=("Segoe UI", 16, "bold"), bg=BG, fg=BLUE
+        ).pack(pady=(20, 15))
+
+        details = [
+            f"Match status: {match_result}",
+            f"Rounds played: {self.round_no} / {ROUNDS}",
+            f"Player wins: {self.player_wins}",
+            f"Computer wins: {self.computer_wins}",
+            f"Ties: {self.ties}",
+            f"Player win rate: {rate:.2f}%",
+            f"Longest win streak: {self.longest_streak}",
+            "",
+            f"Rock selections: {self.rock_count}",
+            f"Paper selections: {self.paper_count}",
+            f"Scissors selections: {self.scissors_count}"
+        ]
+        for line in details:
+            tk.Label(
+                report, text=line, font=("Segoe UI", 11),
+                bg=BG, fg=WHITE
+            ).pack(anchor="w", padx=35, pady=4)
+
+        tk.Button(
+            report, text="CLOSE", command=report.destroy,
+            bg="#1769AA", fg="white", relief="flat",
+            padx=20, pady=8, cursor="hand2"
+        ).pack(pady=15)
+
+    def restart_game(self):
+        if self.round_no > 0:
+            if not messagebox.askyesno(
+                "New Game",
+                "Start a new match? Current match results will be cleared."
+            ):
+                return
+
+        self.reset_values()
+        for item in self.table.get_children():
+            self.table.delete(item)
+        for button in self.move_buttons:
+            button.config(state="normal")
+
+        self.result_label.config(
+            text="Choose a move to start the game!", fg=BLUE
+        )
+        self.moves_label.config(
+            text="Your choice: —     Computer choice: —"
+        )
+        self.footer_status.config(text="● Ready to play")
+        self.refresh_dashboard()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = GameTracker(root)
+    root.mainloop()
